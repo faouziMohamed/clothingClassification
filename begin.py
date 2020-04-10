@@ -14,7 +14,6 @@ fashion_mnist = keras.datasets.fashion_mnist
 #class_names_en = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
 #               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
 
-## Les noms de classes
 class_names_fr = ['T-shirt/Haut', 'Pantalon', 'Tricot', 'Robe', 'Manteau',
                'Sandale', 'Chemise', 'Basket', 'Sac', 'Bottine']
 
@@ -22,17 +21,17 @@ class_names_fr = ['T-shirt/Haut', 'Pantalon', 'Tricot', 'Robe', 'Manteau',
 
 #Normalisation of data every pixel will be equal 0<pixel<1
 train_images = train_images/255.0
-test_images  = test_images/255.0
+test_images  = test_images/255.0  
 
 #Divide and Reshape of the dataset
 # - Train    data
 # - Validate data
 # - Test     data
 
-##Validate data shape : ()             --> ( 5000, 28, 28)
-##Train    data shape : (60000, 28, 28)--> (55000, 28, 28)
-train_images, validate_images = train_images[5000:],train_images[:5000]
-train_labels, validate_labels = train_labels[5000:],train_labels[:5000]
+##Validate data shape : ()             --> (10 000, 28, 28)
+##Train    data shape : (60000, 28, 28)--> (50 000, 28, 28)
+train_images, validate_images = train_images[10000:],train_images[:10000]
+train_labels, validate_labels = train_labels[10000:],train_labels[:10000]
 
 ## Reshape data to add explicitly...
 ##...the shannel of color (Important for the convolutioning step):
