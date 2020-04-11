@@ -8,7 +8,7 @@ Principals data are managed in this Module
 """
 
 
-@read_only_properties('x','y','x_test', 'y_test','x_validate','y_validate','x_train','_y_train')
+#@read_only_properties('x','y','x_test', 'y_test','x_validate','y_validate','x_train','y_train')
 class Dtset:
     """
         This a class that attribute is readonly. 
@@ -19,18 +19,21 @@ class Dtset:
     def __init__(self,validate_size=10000):
         (__x, __y),(self.x_test, self.y_test) = self.load_data()
         self.class_names = self.__class_names()
-
-        if validate_size<=0:
+        #v_size = validate_size
+        if validate_size < 1:
             raise IndexError(f'validate_size cannot be negative here {validate_size} < 0')
         if validate_size > 30000:
             raise IndexError(f'validate_size is too big thant train data size'+
                 ' here validate size = {validate_size} > {60000-validate_size}')
 
+        __x = self.data_Normalize(__x)
+        self.x_test  = self.data_Normalize(self.x_test)
+
         self.x_validate = __x[:validate_size]
         self.y_validate = __y[:validate_size]
 
         self.x_train    = __x[validate_size:]
-        self._y_train    = __y[validate_size:]
+        self.y_train    = __y[validate_size:]
 
 
     def load_data(self):

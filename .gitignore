@@ -8,7 +8,7 @@ __pycache__/
 
 PFE/
 
-*.h5
+./*.h5
 clothing
 
 # Distribution / packaging
