@@ -9,7 +9,7 @@ __pycache__/
 PFE/
 
 ./*.h5
-clothing
+clothing/
 
 # Distribution / packaging
 .Python
