@@ -8,6 +8,9 @@ __pycache__/
 
 PFE/
 
+*.h5
+clothing
+
 # Distribution / packaging
 .Python
 build/
