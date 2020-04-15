@@ -1,9 +1,12 @@
-from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Conv2D, Flatten, Dropout, MaxPooling2D
-import tensorflow as tf
 from external.rop import read_only_properties
-from dataset import Dtset
+from tensorflow   import keras
+from dataset      import Dtset
+from sys          import exit
+
+import tensorflow as tf
+import matplotlib.pyplot as plt
 
 """
 This module allow developper to manage the tensorflow.keras.Sequential model
@@ -31,7 +34,7 @@ class Model:
                  hidden_activation= 'relu',    input_shape=(28,28,1),
                  hidden_neurones  = 256,       ouput_neurones=10,
                  optimizer='adam',loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True),
-                 metrics=[],verbose=1):
+                 metrics=[],verbose=1, dataset=Dtset(validate_size=15000, predict_size=1500)):
 
         self.conv2D_filters    = filters
         self.kernel_size       = kernel_size
@@ -48,9 +51,13 @@ class Model:
         self.loss              = loss
         self.metrics           = metrics
         self.verbose           = verbose
-        self.i = 1
-        self.__model = None
-        self.__compiled = False
+        self.i                 = 1
+        self.__model           = None
+        self.__compiled        = False
+        self.dataset           = dataset
+        self.batch_size        = 64
+        self.epochs            = 1
+        self.prediction        = None
 
         self.new_model()
         self.compile()
@@ -83,7 +90,7 @@ class Model:
         self.__model.add(MaxPooling2D(2,2,name='MaxPooling_2'))
         self.__model.add(Dropout(0.2,name='Dropout_2'))
         
-        """
+        
         self.__model.add(Conv2D(filters = self.conv2D_filters,
                          kernel_size  = self.kernel_size,
                          padding      = self.padding,
@@ -92,12 +99,14 @@ class Model:
                         ))
         self.__model.add(MaxPooling2D(2,2,name='MaxPooling_3'))
         self.__model.add(Dropout(0.2,name='Dropout_3'))
-        """
+        
         
         self.__model.add(Flatten(name='Flatten_Layer'))
         self.__model.add(Dense(units=self.hidden_nn,
                                 activation = self.hidden_activation,name='1st_dense_layer'))
-        self.__model.add(Dense(10,activation = self.output_activation,name='2nd_dense_layer'))
+        self.__model.add(Dense(units=256,
+                                activation = self.hidden_activation,name='2nd_dense_layer'))
+        self.__model.add(Dense(10,activation = self.output_activation,name='3rd_dense_layer'))
         return self.__model
     
     def compile(self):
@@ -151,50 +160,108 @@ class Model:
 
         return (x_train,y_train),(x_validate,y_validate),(x_test,y_test)
 
+    def __check_data_and_parameters(self,**kwargs):
+        if type(kwargs['dataset']) is not Dtset:
+            self.__raise_incompatible_type(kwargs['dataset'],Dtset())
+
+        if (type(kwargs['model']) is not self) and (type(kwargs['model']) is not type(None)) :
+            self.__raise_incompatible_type(kwargs['model'],self)
+
+    def __config_model(self,**kwargs):
+        #Values Check
+        if (kwargs['batch_size'] is not None) and (kwargs['batch_size']<0):
+            self.batch_size=None
+        if kwargs["epochs"] < 1 :
+            self.epochs = 1
+            
+        #Configuring the model
+        if (kwargs['model'] is None) :
+
+            if self.__model is None:
+                self.new_model()
+                self.compile(optimizer=self.optimizer,
+                              loss=self.loss,metrics=self.metrics)
+            else:
+                if self.__compiled is not True:
+                    self.compile()
+                    self.__compiled = True
+
     def fit(self, dataset,model=None, epochs=1, batch_size=None, callback=None):
         """
         Fit the model with the given dataset
         """
         #Exception check
-        if type(dataset) is not Dtset:
-            self.__raise_incompatible_type(dataset,Dtset())
+        self.__check_data_and_parameters(dataset=dataset, model=model)
+        #check value
 
-        if (type(model) is not self) and (type(model) is not type(None)) :
-            self.__raise_incompatible_type(model,self)
+        self.__config_model(batch_size=batch_size, epochs=epochs, model=model )
+        
+        self.dataset = dataset
+        #reshape the data by adding 1 on the 4th dimension
+        (self.dataset.x_train,self.dataset.y_train),\
+        (self.dataset.x_validate,self.dataset.y_validate),\
+        (self.dataset.x_test,self.dataset.y_test) = self.__reshape_add_one(dataset=dataset)
 
-        #Values Check
-        if (batch_size is not None) and (batch_size<0):
-            batch_size=None
-        if epochs < 1 :
-            epochs = 1
-            
-        #Configuring the model
-        if (model is None) :
-
-            if self.__model is None:
-                model = self.new_model()
-                model.compile(optimizer=self.optimizer,
-                              loss=self.loss,metrics=self.metrics)
-            else:
-                if self.__compiled is not True:
-                    self.compile()
-                model = self.__model
-                
-        (x_train,y_train),(x_validate,y_validate),(_,_) = self.__reshape_add_one(dataset=dataset)
-        if (dataset.x_validate.shape[0] is not 0):
-            validation = (x_validate,y_validate)
+        if (self.dataset.x_validate.shape[0] is not 0):
+            validation = (self.dataset.x_validate, self.dataset.y_validate)
         else:
             validation = None
 
-        model.fit(
-              x=x_train,
-              y=y_train,
-              batch_size=batch_size,
+
+        self.fit_history = self.model.fit(
+              x=self.dataset.x_train,
+              y=self.dataset.y_train,
+              batch_size=self.batch_size,
               validation_data=validation,
-              epochs=epochs,
+              epochs=self.epochs,
               verbose = self.verbose,
               callbacks=callback)
+        return self.fit_history
     
+
+    def plot_prediction(self, index_test):
+        """
+        This function plot the prediction for the index 'index_test'
+            if the prediction is correct, the name of the predicted image will be writte, in blue color
+            otherwise, it will be written in red.
+            The argument 'index_test' must be a integer
+            
+            Before calling this function, make sure the model is trained and evaluate! if it is not the case
+            an exception will be raisen. 
+        
+        """
+        if type(index_test) is not int:
+            raise ValueError(f"""Error '{index_test}' is not an integer, aborting...""")
+        try:
+            self.dataset.x_predict = self.dataset.x_predict.reshape(-1,28,28) 
+            label                  = int(index_test)
+            dataset                = self.dataset
+            name                   = dataset.y_predict[label]
+            name_predicted         = self.prediction[label].argmax()
+        except IndexError:
+            raise 
+        
+
+        #Drawing the two images
+        plt.figure(figsize=(6,6))
+
+        #The image of test
+        plt.subplot(1,2,1)
+        plt.imshow(dataset.x_predict[label])
+        plt.title(dataset.class_names[name])
+
+        #Predicted image
+        plt.subplot(1,2,2)
+        plt.imshow(dataset.x_predict[label])
+
+        if dataset.class_names[name_predicted] == dataset.class_names[name]:
+            plt.title(dataset.class_names[name_predicted],c='blue')
+        else:
+            plt.title(dataset.class_names[name_predicted],c='red')
+        #Drawing in the subplot
+        plt.show()
+
+
     @property
     def model(self):
         return self.__model
@@ -203,4 +270,10 @@ class Model:
     def model(self,mod):
         if type(mod) is not type(Sequential()):
             self.__raise_incompatible_type(mod, keras.Sequential())
-        self.__model = mod
+
+        mod = Sequential(mod)
+        self.__model    = mod
+
+        self.dataset.x_predict = self.dataset.x_predict.reshape(-1,28,28,1) 
+        self.prediction = self.__model.predict(self.dataset.x_predict)
+
