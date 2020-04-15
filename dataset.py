@@ -16,25 +16,55 @@ class Dtset:
 
         [The readOnly features is provided by the package rop from 'pip'.]  
     """
-    def __init__(self,validate_size=10000):
-        (__x, __y),(self.x_test, self.y_test) = self.load_data()
-        self.class_names = self.__class_names()
-        #v_size = validate_size
-        if validate_size < 1:
-            raise IndexError(f'validate_size cannot be negative here {validate_size} < 0')
-        if validate_size > 30000:
-            raise IndexError(f'validate_size is too big thant train data size'+
-                ' here validate size = {validate_size} > {60000-validate_size}')
+    def __init__(self,validate_size=15000,predict_size=1500):
+        (__x_tr, __y_tr),(__x_ts, __y_ts) = self.load_data()
+        self.class_names = self.classNames()
+        #check there is no probleme with value
+        self.__raise_error_data(value=predict_size,data='test')
+        self.__raise_error_data(value=predict_size,data='predict')
 
-        __x = self.data_Normalize(__x)
-        self.x_test  = self.data_Normalize(self.x_test)
+        __x_tr  = self.data_Normalize(__x_tr)
+        __x_ts  = self.data_Normalize(__x_ts)
 
-        self.x_validate = __x[:validate_size]
-        self.y_validate = __y[:validate_size]
 
-        self.x_train    = __x[validate_size:]
-        self.y_train    = __y[validate_size:]
+        #Spliting the datato create different value for our model
+        ## Value for predict and test data
+        self.x_predict  = __x_ts[:predict_size]
+        self.y_predict  = __y_ts[:predict_size]
+        self.x_test     = __x_ts[predict_size:]
+        self.y_test     = __y_ts[predict_size:]
 
+        #Value for validate and train
+        self.x_validate = __x_tr[:validate_size]
+        self.y_validate = __y_tr[:validate_size]
+
+        self.x_train    = __x_tr[validate_size:]
+        self.y_train    = __y_tr[validate_size:]
+
+    def __raise_error_data(self,value,data='test'):
+        """
+        Raise exception if value given in parameter is not correct for validate data or test data
+        """
+        #Check if value is correct
+        type_value = str(type(value)).split('\'')[1]
+        if data is 'test':
+            if type(value) is not int:
+                raise AttributeError(f'The value size must be a integer! not a {type_value}')
+       
+       #check given predict size is correct
+        if value < 1:
+            raise IndexError(f'validate_size cannot be negative nor null here {value} < 0')
+        if value > 5000:
+            raise IndexError(f'predict_size is too big thant test data size'+
+            ' here test size = {value} > {10000-value}')
+
+        #check given validate size is correct
+        elif data is 'predict':
+            if value < 1:
+                raise IndexError(f'validate_size cannot be negative nor null here{value} < 0')
+            if value > 30000:  
+                raise IndexError(f'validate_size is too big thant train data size'+
+                ' here validate size = {value} > {60000-value}')
 
     def load_data(self):
         """
@@ -49,9 +79,8 @@ class Dtset:
         """
         fashion_mnist = keras.datasets.fashion_mnist
         return fashion_mnist.load_data()
-
     
-    def __class_names(self, lang='fr'):
+    def classNames(self, lang='fr'):
         """
         Return the mnist dataset class names in the lang choosen between fr(French) and en(English)   
         """
@@ -79,7 +108,7 @@ class Dtset:
             if it equal 'en' then it will be in English    
         """
         dataset = self.load_data(lang)
-        class_names_ = self.__class_names(lang)
+        class_names_ = self.classNames(lang)
             
         return (dataset, class_names_)
 
