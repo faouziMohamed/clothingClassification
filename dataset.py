@@ -49,7 +49,7 @@ class Dtset:
         type_value = str(type(value)).split('\'')[1]
         if data is 'test':
             if type(value) is not int:
-                raise AttributeError(f'The value size must be a integer! not a {type_value}')
+                raise TypeError(f'The value size must be a integer! not a {type_value}')
        
        #check given predict size is correct
         if value < 1:
@@ -117,5 +117,5 @@ class Dtset:
         Divide and return the given dataset (as numpy array) by 255.0
         """
         if type(dataset) is not np.ndarray:
-            raise ValueError("The dataset's type must be a 'numpy.ndarray'!")
+            raise TypeError("The dataset's type must be a 'numpy.ndarray'!")
         return dataset/255.0

@@ -53,11 +53,15 @@ class Model:
         self.verbose           = verbose
         self.i                 = 1
         self.__model           = None
-        self.__compiled        = False
         self.dataset           = dataset
-        self.batch_size        = 64
+        self.batch_size        = 32
         self.epochs            = 1
         self.prediction        = None
+
+        self.__compiled        = False
+        self.__fitted          = False
+        self.__evaluated       = False
+        self.__predicted       = False
 
         self.new_model()
         self.compile()
@@ -106,7 +110,7 @@ class Model:
                                 activation = self.hidden_activation,name='1st_dense_layer'))
         self.__model.add(Dense(units=256,
                                 activation = self.hidden_activation,name='2nd_dense_layer'))
-        self.__model.add(Dense(10,activation = self.output_activation,name='3rd_dense_layer'))
+        self.__model.add(Dense(10,activation = self.output_activation,name='4rd_dense_layer'))
         return self.__model
     
     def compile(self):
@@ -114,11 +118,12 @@ class Model:
             optimizer=self.optimizer,
             loss=self.loss,
             metrics=self.metrics)
+        self.__compiled = True
 
     def __raise_incompatible_type(self,a,b):
         type_a = str(type(a)).split('\'')[1]
         type_b = str(type(b)).split('\'')[1]
-        raise AttributeError(f"{type_a} object cannot be converted to '{type_b}' because '{type_a}' and '{type_b}' are not compatible")
+        raise TypeError(f"{type_a} object cannot be converted to '{type_b}' because '{type_a}' and '{type_b}' are not compatible")
 
     def __reshape_add_one(self, dataset):
         """
@@ -160,33 +165,53 @@ class Model:
 
         return (x_train,y_train),(x_validate,y_validate),(x_test,y_test)
 
+    def __reshape_one(self, data):
+        return data.reshape(-1,28,28,1)
+
+    def __reshape_no_one(self,data):
+        return data.reshape(-1,28,28)
+
     def __check_data_and_parameters(self,**kwargs):
+        """
+        Check if every data structure is correct before configuring the model to be fitted
+        """
         if type(kwargs['dataset']) is not Dtset:
-            self.__raise_incompatible_type(kwargs['dataset'],Dtset())
+            if  kwargs['dataset'] is None:
+                pass
+            else:
+                self.__raise_incompatible_type(kwargs['dataset'], Dtset())
 
         if (type(kwargs['model']) is not self) and (type(kwargs['model']) is not type(None)) :
             self.__raise_incompatible_type(kwargs['model'],self)
 
     def __config_model(self,**kwargs):
+        """
+        Choosing wich value will be used during the training step and prepare the values 
+        to be setted to the fit function 
+        """
         #Values Check
         if (kwargs['batch_size'] is not None) and (kwargs['batch_size']<0):
             self.batch_size=None
         if kwargs["epochs"] < 1 :
             self.epochs = 1
+        else:
+            self.epochs = kwargs["epochs"]
             
         #Configuring the model
         if (kwargs['model'] is None) :
-
             if self.__model is None:
                 self.new_model()
-                self.compile(optimizer=self.optimizer,
-                              loss=self.loss,metrics=self.metrics)
+                self.compile()
             else:
                 if self.__compiled is not True:
                     self.compile()
-                    self.__compiled = True
+        else:
+            self.model = kwargs['model']
 
-    def fit(self, dataset,model=None, epochs=1, batch_size=None, callback=None):
+        if kwargs['dataset'] is not None:
+            self.dataset = kwargs['dataset']
+
+    def fit(self, dataset=None,model=None, epochs=32, batch_size=None, callback=None):
         """
         Fit the model with the given dataset
         """
@@ -194,9 +219,8 @@ class Model:
         self.__check_data_and_parameters(dataset=dataset, model=model)
         #check value
 
-        self.__config_model(batch_size=batch_size, epochs=epochs, model=model )
+        self.__config_model(batch_size=batch_size, epochs=epochs, model=model, dataset=dataset )
         
-        self.dataset = dataset
         #reshape the data by adding 1 on the 4th dimension
         (self.dataset.x_train,self.dataset.y_train),\
         (self.dataset.x_validate,self.dataset.y_validate),\
@@ -216,8 +240,22 @@ class Model:
               epochs=self.epochs,
               verbose = self.verbose,
               callbacks=callback)
+        self.__fitted = True
         return self.fit_history
     
+    def evaluate(self):
+        if self.__fitted is not True:
+            raise RuntimeError(f'You must train the model before to evaluate it')
+        evaluation = self.__model.evaluate(self.dataset.x_test,self.dataset.y_test)
+        self.__evaluated = True;
+        return evaluation
+
+    def predict(self):
+        if self.__evaluated is not True:
+            raise RuntimeError(f'You must train and evaluate the model before making prediction')
+        prediction = self.__model.predict(self.dataset.x_predict)
+        self.__predicted = True
+        return prediction
 
     def plot_prediction(self, index_test):
         """
@@ -230,10 +268,19 @@ class Model:
             an exception will be raisen. 
         
         """
+        if self.__predicted is not True:
+            if self.__fitted is not True:
+                raise RuntimeError(f'Train and evaluate the model before make prediction')
+            if self.__evaluated is not True:
+                self.evaluate()
+
+            self.dataset.x_predict = self.__reshape_one(self.dataset.x_predict) 
+            self.prediction = self.__model.predict(self.dataset.x_predict)
+
         if type(index_test) is not int:
             raise ValueError(f"""Error '{index_test}' is not an integer, aborting...""")
         try:
-            self.dataset.x_predict = self.dataset.x_predict.reshape(-1,28,28) 
+            self.dataset.x_predict = self.__reshape_no_one(self.dataset.x_predict) 
             label                  = int(index_test)
             dataset                = self.dataset
             name                   = dataset.y_predict[label]
@@ -271,9 +318,14 @@ class Model:
         if type(mod) is not type(Sequential()):
             self.__raise_incompatible_type(mod, keras.Sequential())
 
-        mod = Sequential(mod)
-        self.__model    = mod
+        #mod = Sequential(mod)
+        self.__model   = mod
+        self.loss      = mod.loss
+        self.optimizer = mod.optimizer
+        self.metrics   = mod.metrics
 
-        self.dataset.x_predict = self.dataset.x_predict.reshape(-1,28,28,1) 
-        self.prediction = self.__model.predict(self.dataset.x_predict)
+        #self.__fitted = True
+        #self.__evaluated = True
+        #self.dataset.x_predict = self.__reshape_one(self.dataset.x_predict) 
+        #self.prediction = self.__model.predict(self.dataset.x_predict)
 
