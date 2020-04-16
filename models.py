@@ -1,12 +1,14 @@
 from tensorflow.keras.models import Sequential
+from tensorflow.keras        import callbacks
 from tensorflow.keras.layers import Dense, Conv2D, Flatten, Dropout, MaxPooling2D
 from external.rop import read_only_properties
 from tensorflow   import keras
 from dataset      import Dtset
-from sys          import exit
+
 
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import os, glob, re
 
 """
 This module allow developper to manage the tensorflow.keras.Sequential model
@@ -34,8 +36,12 @@ class Model:
                  hidden_activation= 'relu',    input_shape=(28,28,1),
                  hidden_neurones  = 256,       ouput_neurones=10,
                  optimizer='adam',loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True),
-                 metrics=[],verbose=1, dataset=Dtset(validate_size=15000, predict_size=1500)):
-
+                 metrics=[],verbose=1, dataset=Dtset(validate_size=15000, predict_size=1500),
+                 try_load_latest_save=True, load_saved_model=None):
+        
+        
+        self.load_latest       = try_load_latest_save
+        self.load_saved_model  = load_saved_model
         self.conv2D_filters    = filters
         self.kernel_size       = kernel_size
         self.padding           = padding
@@ -57,15 +63,54 @@ class Model:
         self.batch_size        = 32
         self.epochs            = 1
         self.prediction        = None
+        self.callback          = None
 
         self.__compiled        = False
         self.__fitted          = False
         self.__evaluated       = False
         self.__predicted       = False
-
-        self.new_model()
-        self.compile()
+        
+        #trying to load some model before creating a new model
+        load = False
+        if load_saved_model is not None:
+          if type(load_saved_model) is not str:
+            raise TypeError(f"{load_saved_model} must be of type 'str'")
+          load = self.__find_model_saved(load_saved_model)
+        elif try_load_latest_save is True:
+          load = self.__find_model_saved('')
+        
+        if load is False:
+          self.new_model()
+          self.compile()
     
+
+
+    def __find_model_saved(self,path_to_file=''):
+      """
+      Read model saved in local
+      """
+
+      # If user want to load a specific model saved on local
+      if path_to_file is not '' and os.path.exists(path_to_file):
+        if os.path.isfile(path_to_file):
+          self.model = path_to_file
+          return True
+        else :
+          raise ResourceWarning(f"'{path_to_file}' is not a file, it's actually a directory! ...Aborting")
+      elif path_to_file is not '' and not os.path.exists(path_to_file):
+          raise ResourceWarning(f"'{path_to_file}' is missing, removed or the name is incorrect")
+      
+      # If the user want to load latest saved model
+      if self.load_latest is True:
+        list_file = glob.glob('*.h5')
+        list_file.sort(reverse=True)
+        if len(list_file) is 0:
+          return False
+        else:  
+          self.model = list_file[0]
+          return True
+
+
     #@read_only_properties('__model')
     def new_model(self):
         """
@@ -102,15 +147,15 @@ class Model:
                          name='3rd_Conv2D'
                         ))
         self.__model.add(MaxPooling2D(2,2,name='MaxPooling_3'))
-        self.__model.add(Dropout(0.2,name='Dropout_3'))
+        self.__model.add(Dropout(0.1,name='Dropout_3'))
         
         
         self.__model.add(Flatten(name='Flatten_Layer'))
         self.__model.add(Dense(units=self.hidden_nn,
                                 activation = self.hidden_activation,name='1st_dense_layer'))
-        self.__model.add(Dense(units=256,
-                                activation = self.hidden_activation,name='2nd_dense_layer'))
-        self.__model.add(Dense(10,activation = self.output_activation,name='4rd_dense_layer'))
+        """self.__model.add(Dense(units=64,
+                                activation = self.hidden_activation,name='2nd_dense_layer'))"""
+        self.__model.add(Dense(10,activation = self.output_activation,name='3rd_dense_layer'))
         return self.__model
     
     def compile(self):
@@ -129,6 +174,10 @@ class Model:
         """
         Reshape numpy.ndarray from the shape(a,b,c) to shape(a,b,c,1)
         """
+
+        if dataset is None:
+          dataset = self.dataset
+          
         x_train = dataset.x_train
         y_train = dataset.y_train
         x_validate = dataset.x_validate
@@ -183,6 +232,28 @@ class Model:
 
         if (type(kwargs['model']) is not self) and (type(kwargs['model']) is not type(None)) :
             self.__raise_incompatible_type(kwargs['model'],self)
+    
+    def __create_callback(self,path_to_file='saved_model'):
+        """
+        Create a callback that will be during the training step to save the best configuration
+        """
+        list_file = glob.glob('saved_model/*.h5')
+        list_file.sort(reverse=True)
+
+        if len(list_file) is 0:
+          file_path=f'{path_to_file}/save_1.h5'
+        else:
+          i = int(re.findall('\d+',list_file[0])[0])
+          if i is 0:
+            file_path = f'{path_to_file}/save_{1}.h5'
+          else:
+            file_path = f'{path_to_file}/save_{i+1}.h5'
+
+        self.callback = callbacks.ModelCheckpoint(filepath=file_path,
+                                              verbose=0,
+                                              monitor='val_accuracy',
+                                              save_best_only=True)
+        return self.callback
 
     def __config_model(self,**kwargs):
         """
@@ -230,6 +301,11 @@ class Model:
             validation = (self.dataset.x_validate, self.dataset.y_validate)
         else:
             validation = None
+          
+        if callback is not None:
+          self.callback = callback
+        else:
+          self.__create_callback()
 
 
         self.fit_history = self.model.fit(
@@ -239,7 +315,7 @@ class Model:
               validation_data=validation,
               epochs=self.epochs,
               verbose = self.verbose,
-              callbacks=callback)
+              callbacks=self.callback)
         self.__fitted = True
         return self.fit_history
     
@@ -251,6 +327,7 @@ class Model:
         return evaluation
 
     def predict(self):
+        self.dataset.x_predict = self.__reshape_one(self.dataset.x_predict)
         if self.__evaluated is not True:
             raise RuntimeError(f'You must train and evaluate the model before making prediction')
         prediction = self.__model.predict(self.dataset.x_predict)
@@ -274,8 +351,8 @@ class Model:
             if self.__evaluated is not True:
                 self.evaluate()
 
-            self.dataset.x_predict = self.__reshape_one(self.dataset.x_predict) 
-            self.prediction = self.__model.predict(self.dataset.x_predict)
+        self.dataset.x_predict = self.__reshape_one(self.dataset.x_predict) 
+        self.prediction = self.__model.predict(self.dataset.x_predict)
 
         if type(index_test) is not int:
             raise ValueError(f"""Error '{index_test}' is not an integer, aborting...""")
@@ -302,11 +379,14 @@ class Model:
         plt.imshow(dataset.x_predict[label])
 
         if dataset.class_names[name_predicted] == dataset.class_names[name]:
+            correct = True
             plt.title(dataset.class_names[name_predicted],c='blue')
         else:
+            correct = False
             plt.title(dataset.class_names[name_predicted],c='red')
         #Drawing in the subplot
         plt.show()
+        return correct
 
 
     @property
@@ -323,6 +403,15 @@ class Model:
         self.loss      = mod.loss
         self.optimizer = mod.optimizer
         self.metrics   = mod.metrics
+    @property
+    def DIRNAME(self):
+      return os.getcwd()
+
+
+
+
+
+
 
         #self.__fitted = True
         #self.__evaluated = True
