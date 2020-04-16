@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from tensorflow import keras
 import numpy as np
-from external.rop import read_only_properties
+#from external.rop import read_only_properties
 """
 Principals data are managed in this Module 
 """
