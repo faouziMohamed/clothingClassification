@@ -233,24 +233,35 @@ class Model:
         if (type(kwargs['model']) is not self) and (type(kwargs['model']) is not type(None)) :
             self.__raise_incompatible_type(kwargs['model'],self)
     
-    def __create_callback(self,path_to_file='saved_model'):
+    def __create_callback(self,path_to_file='models_saved'):
         """
         Create a callback that will be during the training step to save the best configuration
         """
-        list_file = glob.glob('saved_model/*.h5')
+
+        if os.path.exists(path_to_file) is False:
+          os.mkdir(path_to_file)
+
+        list_file = glob.glob(f'{path_to_file}/*.h5')
         list_file.sort(reverse=True)
 
+        #if there is no saved model
         if len(list_file) is 0:
           file_path=f'{path_to_file}/save_1.h5'
+        #get the first
         else:
-          i = int(re.findall('\d+',list_file[0])[0])
+          list_0_ = re.findall('\d+',list_file[0])
+          if len(list_0_) is 0:
+            i = 0
+          else:
+            i = int(list_0_[0])
+
           if i is 0:
             file_path = f'{path_to_file}/save_{1}.h5'
           else:
             file_path = f'{path_to_file}/save_{i+1}.h5'
 
         self.callback = callbacks.ModelCheckpoint(filepath=file_path,
-                                              verbose=0,
+                                              verbose=self.verbose,
                                               monitor='val_accuracy',
                                               save_best_only=True)
         return self.callback
@@ -306,7 +317,7 @@ class Model:
           self.callback = callback
         else:
           self.__create_callback()
-
+        
 
         self.fit_history = self.model.fit(
               x=self.dataset.x_train,
@@ -315,7 +326,7 @@ class Model:
               validation_data=validation,
               epochs=self.epochs,
               verbose = self.verbose,
-              callbacks=self.callback)
+              callbacks=[self.callback])
         self.__fitted = True
         return self.fit_history
     
