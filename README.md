@@ -16,7 +16,7 @@ You can test by yourself this code in google colab, justs click in this [link](h
 
 
 
-## Authors
+## Developpers
 * [Faouzi Mohamed](https://github.com/faouziMohamed)
 * Gnoukoussa Sissoko Oumar
 
