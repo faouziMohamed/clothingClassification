@@ -12,7 +12,7 @@ The project is based to the <q>Tensorflow Framwork</q> link is bellow in [requir
   ```conda install numpy matplotlib```
   - Using [pip](https://www.scipy.org/install.html#installing-via-pip)
 ## Google Colab
-You can test by yourself this code in google colab, justs click in this [link](https://colab.research.google.com/drive/1pwnUlqTGW15zNS9HyMxEbQ8cS0VWz6yN?authuser=1). 
+You can test by yourself this code in google colab, justs click in this [link](https://colab.research.google.com/gist/faouziMohamed/5875247b26d1edcdaf29f3d6d31fe94c/classification_pfe.ipynb?authuser=1#scrollTo=DxtNlOsX63wC). 
 
 
 
